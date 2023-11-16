@@ -3,11 +3,14 @@ import tkinter as tk
 import tensorflow as tf
 from tkinter import filedialog
 from threading import Thread
+from contextlib import redirect_stdout
+from io import StringIO
 import pickle
 from tensorflow import keras
 import matplotlib.pyplot as plt
 from keras.preprocessing.image import ImageDataGenerator
-from PIL import Image, ImageTk, ImageColor
+from keras.utils import plot_model
+from PIL import Image, ImageTk
 import random
 # Account to CSC
 
@@ -109,11 +112,6 @@ callbacks = [
         "teras.weights.h5", monitor='val_loss', verbose=1, save_best_only=True, mode='min'),
     keras.callbacks.EarlyStopping(patience=5, verbose=1),
 ]
-model.compile(
-    optimizer=keras.optimizers.RMSprop(1e-3),
-    loss="binary_crossentropy",
-    metrics=["accuracy"],
-)
 
 # Define data generators
 train_datagen = ImageDataGenerator(rescale=1./255)
@@ -133,6 +131,13 @@ val_generator = val_datagen.flow(
 def train_model():
     global history
     teach_button.config(state=tk.DISABLED)
+
+    model.compile(
+        optimizer=keras.optimizers.RMSprop(1e-3),
+        loss="binary_crossentropy",
+        metrics=["accuracy"],
+    )
+
     history = model.fit(
         train_generator,
         epochs=epochs,
@@ -142,7 +147,7 @@ def train_model():
         callbacks=callbacks,
     )
     print("\nTraining finished.")
-    teach_button.config(state=tk.DISABLED)
+    teach_button.config(state=tk.NORMAL)
 
 
 # UI code
@@ -154,6 +159,8 @@ segmented_label = None
 teach_button = None
 root = None
 history = None
+show_summary_button = None
+text_widget = None
 
 model = make_model(input_shape=image_shape, num_classes=1)
 
@@ -213,10 +220,8 @@ def show_image_button_click():
         segmented_label = tk.Label(root)
         segmented_label.pack(side=tk.LEFT, padx=10)
 
-    # Display the original image
     img_index = random.randint(0, len(images) - 1)
     original_img = Image.fromarray(np.squeeze(images[img_index], axis=2) * 255)
-    # Convert to grayscale for display
     original_img = original_img.convert("L")
     original_img_tk = ImageTk.PhotoImage(original_img)
     image_label.config(image=original_img_tk)
@@ -250,6 +255,39 @@ def show_image_button_click():
     segmented_label.image = segmented_img_tk
 
 
+def get_model_summary():
+    with StringIO() as buffer, redirect_stdout(buffer):
+        model.summary()
+        return buffer.getvalue()
+
+
+def toggle_summary():
+    global text_widget
+
+    if text_widget:
+        text_widget.pack_forget()  # Remove the text widget from the UI
+        text_widget = None
+    else:
+        # Display model summary at the beginning of the text widget
+        model_summary = get_model_summary()
+        text_widget = tk.Text(root, wrap=tk.WORD, width=60, height=20)
+        text_widget.insert(tk.END, model_summary)
+        text_widget.pack()
+
+
+def save_model_img():
+    file_path = filedialog.asksaveasfilename(defaultextension=".png",
+                                             filetypes=[
+                                                 ("PNG files", "*.png")],
+                                             title="Save Model Architecture Plot")
+    if file_path:
+        if not file_path.endswith('.png'):
+            file_path += '.png'
+        plot_model(model, to_file=file_path,
+                   show_shapes=True, show_layer_names=True)
+        print(f"Model visualization saved at {file_path}")
+
+
 root = tk.Tk()
 root.title("Model Teaching UI")
 
@@ -268,6 +306,13 @@ show_graph_button.pack(pady=20)
 show_image_button = tk.Button(
     root, text="Show Image", command=show_image_button_click)
 show_image_button.pack(pady=20)
+
+show_summary_button = tk.Button(root, text="Summary", command=toggle_summary)
+show_summary_button.pack(pady=20)
+
+save_model_button = tk.Button(
+    root, text="Create Model Image", command=save_model_img)
+save_model_button.pack(pady=20)
 
 
 root.mainloop()
