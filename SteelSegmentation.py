@@ -8,13 +8,24 @@ from io import StringIO
 import pickle
 from tensorflow import keras
 import matplotlib.pyplot as plt
-from keras.preprocessing.image import ImageDataGenerator
+from keras.preprocessing import image
+from keras.preprocessing.image import ImageDataGenerator, img_to_array
+from PIL import Image, ImageTk, ImageColor
 from keras.utils import plot_model
 from PIL import Image, ImageTk
 import random
+
+image_label = None
+mask_label = None
+segmented_label = None
+teach_button = None
+root = None
+history = None
+show_summary_button = None
+text_widget = None
+
+
 # Account to CSC
-
-
 opetus_ja_vastetiedot = pickle.load(open("opetustiedot.p", "rb"))
 images = opetus_ja_vastetiedot[0]
 masks = opetus_ja_vastetiedot[1]
@@ -54,51 +65,47 @@ def make_model(input_shape, num_classes):
     inputs = keras.Input(shape=input_shape)
 
     # Contracting Path
-    c1 = keras.layers.Conv2D(
+    x = keras.layers.Conv2D(
         64, (3, 3), activation='relu', padding='same')(inputs)
-    p1 = keras.layers.MaxPooling2D((2, 2))(c1)
+    c1_residue = x
+    x = keras.layers.MaxPooling2D((2, 2))(x)
 
-    c2 = keras.layers.Conv2D(
-        128, (3, 3), activation='relu', padding='same')(p1)
-    p2 = keras.layers.MaxPooling2D((2, 2))(c2)
+    x = keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(x)
+    c2_residue = x
+    x = keras.layers.MaxPooling2D((2, 2))(x)
 
-    c3 = keras.layers.Conv2D(
-        256, (3, 3), activation='relu', padding='same')(p2)
-    p3 = keras.layers.MaxPooling2D((2, 2))(c3)
+    x = keras.layers.Conv2D(256, (3, 3), activation='relu', padding='same')(x)
+    c3_residue = x
+    x = keras.layers.MaxPooling2D((2, 2))(x)
 
-    c4 = keras.layers.Conv2D(
-        512, (3, 3), activation='relu', padding='same')(p3)
-    p4 = keras.layers.MaxPooling2D((2, 2))(c4)
+    x = keras.layers.Conv2D(512, (3, 3), activation='relu', padding='same')(x)
+    c4_residue = x
+    x = keras.layers.MaxPooling2D((2, 2))(x)
 
-    c5 = keras.layers.Conv2D(
-        1024, (3, 3), activation='relu', padding='same')(p4)
+    x = keras.layers.Conv2D(1024, (3, 3), activation='relu', padding='same')(x)
 
     # Expansive Path
-    u6 = keras.layers.Conv2DTranspose(
-        512, (2, 2), strides=(2, 2), padding='same')(c5)
-    u6 = keras.layers.Concatenate()([u6, c4])
-    c6 = keras.layers.Conv2D(
-        512, (3, 3), activation='relu', padding='same')(u6)
+    x = keras.layers.Conv2DTranspose(
+        512, (2, 2), strides=(2, 2), padding='same')(x)
+    x = keras.layers.Concatenate()([x, c4_residue])
+    x = keras.layers.Conv2D(512, (3, 3), activation='relu', padding='same')(x)
 
-    u7 = keras.layers.Conv2DTranspose(
-        256, (2, 2), strides=(2, 2), padding='same')(c6)
-    u7 = keras.layers.Concatenate()([u7, c3])
-    c7 = keras.layers.Conv2D(
-        256, (3, 3), activation='relu', padding='same')(u7)
+    x = keras.layers.Conv2DTranspose(
+        256, (2, 2), strides=(2, 2), padding='same')(x)
+    x = keras.layers.Concatenate()([x, c3_residue])
+    c7 = keras.layers.Conv2D(256, (3, 3), activation='relu', padding='same')(x)
 
-    u8 = keras.layers.Conv2DTranspose(
-        128, (2, 2), strides=(2, 2), padding='same')(c7)
-    u8 = keras.layers.Concatenate()([u8, c2])
-    c8 = keras.layers.Conv2D(
-        128, (3, 3), activation='relu', padding='same')(u8)
+    x = keras.layers.Conv2DTranspose(
+        128, (2, 2), strides=(2, 2), padding='same')(x)
+    x = keras.layers.Concatenate()([x, c2_residue])
+    x = keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(x)
 
-    u9 = keras.layers.Conv2DTranspose(
-        64, (2, 2), strides=(2, 2), padding='same')(c8)
-    u9 = keras.layers.Concatenate()([u9, c1])
-    c9 = keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(u9)
+    x = keras.layers.Conv2DTranspose(
+        64, (2, 2), strides=(2, 2), padding='same')(x)
+    x = keras.layers.Concatenate()([x, c1_residue])
+    x = keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(x)
 
-    outputs = keras.layers.Conv2D(
-        num_classes, (1, 1), activation="sigmoid")(c9)
+    outputs = keras.layers.Conv2D(num_classes, (1, 1), activation="sigmoid")(x)
     return keras.Model(inputs, outputs)
 
 
@@ -109,9 +116,14 @@ epochs = 2
 
 callbacks = [
     keras.callbacks.ModelCheckpoint(
-        "teras.weights.h5", monitor='val_loss', verbose=1, save_best_only=True, mode='min'),
-    keras.callbacks.EarlyStopping(patience=5, verbose=1),
+        "teras1.weights.h5", monitor='val_loss', verbose=1, save_best_only=True, mode='min'),
+    keras.callbacks.EarlyStopping(patience=30, verbose=1),
 ]
+model.compile(
+    optimizer=keras.optimizers.RMSprop(1e-3),
+    loss="binary_crossentropy",
+    metrics=["accuracy"],
+)
 
 # Define data generators
 train_datagen = ImageDataGenerator(rescale=1./255)
@@ -150,18 +162,6 @@ def train_model():
     teach_button.config(state=tk.NORMAL)
 
 
-# UI code
-
-
-image_label = None
-mask_label = None
-segmented_label = None
-teach_button = None
-root = None
-history = None
-show_summary_button = None
-text_widget = None
-
 model = make_model(input_shape=image_shape, num_classes=1)
 
 
@@ -172,14 +172,12 @@ def get_model_info():
 
 
 def teach_model_thread():
-    # Train the model in a separate thread
     training_thread = Thread(target=train_model)
     training_thread.start()
 
 
 def show_graph_button_click():
     if history is not None:
-        # Plot training and validation metrics
         plt.figure(figsize=(12, 6))
 
         plt.subplot(1, 2, 1)
@@ -204,7 +202,7 @@ def show_graph_button_click():
         print("No training history available. Please train the model first.")
 
 
-def show_image_button_click():
+def show_image_button_click():  # For random image
     global root, image_label, mask_label, segmented_label
 
     # Create labels if not already created
@@ -220,8 +218,10 @@ def show_image_button_click():
         segmented_label = tk.Label(root)
         segmented_label.pack(side=tk.LEFT, padx=10)
 
+    # Display the original image
     img_index = random.randint(0, len(images) - 1)
     original_img = Image.fromarray(np.squeeze(images[img_index], axis=2) * 255)
+
     original_img = original_img.convert("L")
     original_img_tk = ImageTk.PhotoImage(original_img)
     image_label.config(image=original_img_tk)
@@ -253,6 +253,9 @@ def show_image_button_click():
     segmented_img_tk = ImageTk.PhotoImage(segmented_img)
     segmented_label.config(image=segmented_img_tk)
     segmented_label.image = segmented_img_tk
+
+    # Ensure the image_label is updated
+    root.update_idletasks()
 
 
 def get_model_summary():
@@ -288,6 +291,67 @@ def save_model_img():
         print(f"Model visualization saved at {file_path}")
 
 
+def create_predicted_mask(image_path, model):
+    global root, image_label, mask_label
+
+    # Ensure image_label is created
+    if not image_label:
+        image_label = tk.Label(root)
+        image_label.pack(side=tk.LEFT, padx=10)
+
+    # Ensure mask_label is created
+    if not mask_label:
+        mask_label = tk.Label(root)
+        mask_label.pack(side=tk.LEFT, padx=10)
+
+    # Load the user-inputted image
+    user_image = Image.open(image_path)
+    user_image = user_image.resize((IMG_WIDTH, IMG_HEIGHT))
+
+    # Preprocess the image for model prediction
+    img_array = image.img_to_array(user_image)
+    img_array = np.expand_dims(img_array, axis=0) / 255.0
+
+    # Display the original image
+    original_img_tk = ImageTk.PhotoImage(user_image)
+    image_label.config(image=original_img_tk)
+    image_label.image = original_img_tk
+    root.update_idletasks()  # Ensure the image_label is updated
+
+    # Generate predictions using the model
+    predicted_mask = model.predict(img_array)[0]
+
+    threshold = 0.5
+    predicted_mask[predicted_mask >= threshold] = 1
+    predicted_mask[predicted_mask < threshold] = 0
+
+    # Display the predicted mask
+    predicted_mask_img = Image.fromarray(
+        (predicted_mask.squeeze() * 255).astype(np.uint8))
+    predicted_mask_img = predicted_mask_img.convert("L")
+    predicted_mask_img_tk = ImageTk.PhotoImage(predicted_mask_img)
+    mask_label.config(image=predicted_mask_img_tk)
+    mask_label.image = predicted_mask_img_tk
+
+
+def upload_and_predict():
+    global root, image_label, mask_label
+
+    if image_label:
+        image_label.pack_forget()
+        image_label = None
+
+    if mask_label:
+        mask_label.pack_forget()
+        mask_label = None
+
+    image_path = filedialog.askopenfilename(
+        title="Select Image File", filetypes=[("Image files", "*.png;*.jpg;*.jpeg")])
+
+    if image_path:
+        create_predicted_mask(image_path, model)
+
+
 root = tk.Tk()
 root.title("Model Teaching UI")
 
@@ -313,6 +377,10 @@ show_summary_button.pack(pady=20)
 save_model_button = tk.Button(
     root, text="Create Model Image", command=save_model_img)
 save_model_button.pack(pady=20)
+
+upload_image_button = tk.Button(
+    root, text="Upload Image", command=upload_and_predict)
+upload_image_button.pack(pady=20)
 
 
 root.mainloop()
