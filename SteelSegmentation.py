@@ -15,6 +15,8 @@ from keras.utils import plot_model
 from PIL import Image, ImageTk
 import random
 
+# Show only damaged metal sheets
+
 image_label = None
 mask_label = None
 segmented_label = None
@@ -202,7 +204,7 @@ def show_graph_button_click():
         print("No training history available. Please train the model first.")
 
 
-def show_image_button_click():  # For random image
+def show_image_button_click():
     global root, image_label, mask_label, segmented_label
 
     # Create labels if not already created
@@ -218,18 +220,25 @@ def show_image_button_click():  # For random image
         segmented_label = tk.Label(root)
         segmented_label.pack(side=tk.LEFT, padx=10)
 
-    # Display the original image
-    img_index = random.randint(0, len(images) - 1)
-    original_img = Image.fromarray(np.squeeze(images[img_index], axis=2) * 255)
+    # Find an index of a damaged image
+    damaged_indices = np.where(np.sum(masks, axis=(1, 2, 3)) > 0)[0]
 
+    if len(damaged_indices) == 0:
+        print("No damaged images found.")
+        return
+
+    # Randomly choose an index from damaged images
+    img_index = random.choice(damaged_indices)
+
+    # Display the original image
+    original_img = Image.fromarray(np.squeeze(images[img_index], axis=2) * 255)
     original_img = original_img.convert("L")
     original_img_tk = ImageTk.PhotoImage(original_img)
     image_label.config(image=original_img_tk)
     image_label.image = original_img_tk
 
     # Display the mask image
-    mask_img = Image.fromarray(
-        np.squeeze(masks[img_index], axis=2) * 255)
+    mask_img = Image.fromarray(np.squeeze(masks[img_index], axis=2) * 255)
     mask_img = mask_img.convert("L")
     mask_img_tk = ImageTk.PhotoImage(mask_img)
     mask_label.config(image=mask_img_tk)
@@ -244,8 +253,7 @@ def show_image_button_click():  # For random image
     # Highlight damaged area with orange color
     # RGBA values for orange with semi-transparency
     orange_color = (255, 165, 0, 128)
-    damaged_area = Image.fromarray(
-        (np.squeeze(masks[img_index], axis=2) * 255).astype(np.uint8))
+    damaged_area = Image.fromarray(np.squeeze(masks[img_index], axis=2) * 255)
     damaged_area = damaged_area.convert("L")
     segmented_img.paste(
         orange_color, (0, 0, original_img.width, original_img.height), damaged_area)
