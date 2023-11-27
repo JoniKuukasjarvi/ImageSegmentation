@@ -1,10 +1,11 @@
 import numpy as np
 import tkinter as tk
 import tensorflow as tf
-from tkinter import filedialog
+from tkinter import filedialog, ttk
 from threading import Thread
 from contextlib import redirect_stdout
 from io import StringIO
+import os
 import pickle
 from tensorflow import keras
 import matplotlib.pyplot as plt
@@ -25,10 +26,12 @@ root = None
 history = None
 show_summary_button = None
 text_widget = None
+selected_weights_file = "teras1.weights.h5"
 
 
 # Account to CSC
-opetus_ja_vastetiedot = pickle.load(open("opetustiedot.p", "rb"))
+opetus_ja_vastetiedot = pickle.load(
+    open("D:/Projects/AI_projects/opetustiedot.p", "rb"))
 images = opetus_ja_vastetiedot[0]
 masks = opetus_ja_vastetiedot[1]
 
@@ -113,12 +116,23 @@ def make_model(input_shape, num_classes):
 
 model = make_model(input_shape=image_shape, num_classes=1)
 
+
+def on_weights_selected():
+    global selected_weights_file
+    file_path = filedialog.askopenfilename(
+        title="Select Weights File", filetypes=[("H5 files", "*.h5")])
+
+    if file_path and os.path.exists(file_path):
+        selected_weights_file = file_path
+        model_info_label.config(text=get_model_info())
+
+
 # Model Config
 epochs = 2
 
 callbacks = [
     keras.callbacks.ModelCheckpoint(
-        "teras1.weights.h5", monitor='val_loss', verbose=1, save_best_only=True, mode='min'),
+        selected_weights_file, monitor='val_loss', verbose=1, save_best_only=True, mode='min'),
     keras.callbacks.EarlyStopping(patience=30, verbose=1),
 ]
 model.compile(
@@ -168,8 +182,7 @@ model = make_model(input_shape=image_shape, num_classes=1)
 
 
 def get_model_info():
-    model_name = callbacks[0].filepath if callbacks and len(
-        callbacks) > 0 else "undefined"
+    model_name = selected_weights_file
     return f"Current Model: {model_name}"
 
 
@@ -363,9 +376,16 @@ def upload_and_predict():
 root = tk.Tk()
 root.title("Model Teaching UI")
 
+weights_var = tk.StringVar(root)
+weights_var.set("teras1.weights.h5")
+
 # Display the original image when UI starts
 model_info_label = tk.Label(root, text=get_model_info())
 model_info_label.pack(pady=10)
+
+select_weights_button = tk.Button(
+    root, text="Select Weights File", command=on_weights_selected)
+select_weights_button.pack(pady=10)
 
 teach_button = tk.Button(root, text="Teach Model",
                          command=teach_model_thread)
