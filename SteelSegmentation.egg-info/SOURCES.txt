@@ -1,0 +1,9 @@
+README.md
+SteelSegmentation.py
+setup.py
+SteelSegmentation.egg-info/PKG-INFO
+SteelSegmentation.egg-info/SOURCES.txt
+SteelSegmentation.egg-info/dependency_links.txt
+SteelSegmentation.egg-info/entry_points.txt
+SteelSegmentation.egg-info/requires.txt
+SteelSegmentation.egg-info/top_level.txt

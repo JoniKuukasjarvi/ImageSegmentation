@@ -1,13 +1,13 @@
 from setuptools import setup
 # tkinter might be needed to install separately
 setup(
-    name='SteelSegmentation',
+    name='ImageSegmentation',
     version='0.1',
-    scripts=['SteelSegmentation.py'],
+    scripts=['ImageSegmentation.py'],
     packages=[],
     install_requires=[
         'numpy',
-        'tkinter',
+        'tk',
         'tensorflow',
         'Pillow',
         'matplotlib',
@@ -16,7 +16,7 @@ setup(
     entry_points={
         'console_scripts': [
             # Replace with your actual script and module
-            'steel_segmentation=SteelSegmentation:main',
+            'image_segmentation=ImageSegmentation:main',
         ],
     },
 )

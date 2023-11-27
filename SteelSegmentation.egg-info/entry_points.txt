@@ -1,0 +1,3 @@
+[console_scripts]
+steel_segmentation = SteelSegmentation:main
+
